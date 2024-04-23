@@ -1,0 +1,69 @@
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/keyboard.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/uaccess.h>
+#include <linux/delay.h>
+
+define MODULE_NAME "keyboard_led"
+
+static int blink_leds = 0;
+static int blink_delay =1;
+
+static void update_leds(void){
+        int led_state =0;
+        int i;
+        for(i=0; i<3; ++i;){
+                if(blink_leds & (1<<i)){
+                        led_state |=(1<<i);
+                }
+        }
+        setledstate(led_state);
+}
+
+static ssize_t keyboard_led_write(struct file *file, const char __user *buffer, size_t count, loff_t *data){
+        char buf[3];
+        if(copy_from_user(buf,buffer,3)){
+                return -EFAULT;
+        }
+        if(buf[0] =='L'){
+                int leds=bug[1]-'0';
+                if(leds>=0 && leds <=7){
+                        blink_leds =leds;
+                        update_leds();
+                }
+        }else if(buf[0]=='D'){
+                int delay = buf[1] -'0';
+                if(delay >=0 && delay <=9){
+                        blink_delay =delay;
+                }
+        }
+        return count;
+}
+
+static const struct file_operations proc_fops ={
+        .write = keyboard_led_write,
+};
+
+static int __int keyboard_led_init(void){
+        if(!proc_create(MODULE_NAME, 0666, NULL, &proc_fops)){
+                printk(KERN_ERR "Failed to create /proc/%s\n", MODULE_NAME);
+                return -ENOMEM;
+        }
+        printk(KERN_INFO "Module %s loaded\n", MODULE_NAME);
+        return 0;
+}
+
+static void __exit keyboard_led_exit(void){
+        remove_proc_entry(MODULE_NAME, NULL);
+        printk(KERN_INFO "Module %s unloaded\n", MODULE_NAME);
+}
+
+module_init(keyboard_led_init);
+module_init(keyboard_led_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Cole Devorak");
+MODULE_DESCRIPTION("Kernel module to control keyboard LEDs with /proc");
